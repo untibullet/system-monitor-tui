@@ -1,3 +1,3 @@
-module github.com/antibullet/system-monitor-tui
+module github.com/untibullet/system-monitor-tui
 
 go 1.22.1
