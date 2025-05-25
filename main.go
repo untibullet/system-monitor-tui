@@ -1,61 +1,46 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-	"time"
+	"log"
+
+	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func main() {
-	// Create a channel to listen for OS signals
-	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
+	tableStyle := table.DefaultStyles()
+	tableStyle.Selected = lipgloss.NewStyle().Background(Color.Highlight)
 
-	// Create a channel to signal when to print system info
-	printChan := make(chan struct{})
+	// Creates a new table with specified columns and initial empty rows.
+	processTable := table.New(
+		// We use this to define our table "header"
+		table.WithColumns([]table.Column{
+			{Title: "PID", Width: 10},
+			{Title: "Name", Width: 25},
+			{Title: "CPU", Width: 12},
+			{Title: "MEM", Width: 12},
+			{Title: "Username", Width: 12},
+			{Title: "Time", Width: 12},
+		}),
+		table.WithRows([]table.Row{}),
+		table.WithFocused(true),
+		table.WithHeight(20),
+		table.WithStyles(tableStyle),
+	)
 
-	// Use a wait group to wait for all goroutines to finish
-	var wg sync.WaitGroup
-
-	// Start a goroutine to handle the printing
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		printSystemInfo(printChan)
-	}()
-
-	// Create a ticker to signal every 10 seconds
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	// Main loop to handle signals and ticker
-	// as well as keep the main goroutine running
-	for {
-		select {
-		case <-ticker.C:
-			printChan <- struct{}{}
-		case <-stopChan:
-			fmt.Println("Received stop signal, stopping...")
-			close(printChan)
-			wg.Wait()
-			return
-		}
+	m := model{
+		processTable: processTable,
+		tableStyle:   tableStyle,
+		baseStyle:    lipgloss.NewStyle(),
+		viewStyle:    lipgloss.NewStyle(),
 	}
-}
 
-func printSystemInfo(printChan chan struct{}) {
-	for range printChan {
-		cpuUsage, _ := GetCPUStats()
+	// Create a new Bubble Tea program with the model and enable alternate screen
+	p := tea.NewProgram(m, tea.WithAltScreen())
 
-		memoryUsage, _ := GetMEMStats()
-
-		runningProcesses, _ := GetProcesses(10)
-
-		fmt.Println("CPU Percentage    :", cpuUsage)
-		fmt.Println("Memory Percentage :", memoryUsage)
-		fmt.Println("Running Processes :", runningProcesses)
+	// Run the program and handle any errors
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("Error running program: %v", err)
 	}
 }
